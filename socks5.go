@@ -97,28 +97,28 @@ func New(conf *Config) (*Server, error) {
 }
 
 // ListenAndServe is used to create a listener and serve on it
-func (s *Server) ListenAndServe(network, addr string) error {
+func (s *Server) ListenAndServe(network, addr string, redirectList []net.IP) error {
 	l, err := net.Listen(network, addr)
 	if err != nil {
 		return err
 	}
-	return s.Serve(l)
+	return s.Serve(l, redirectList)
 }
 
 // Serve is used to serve connections from a listener
-func (s *Server) Serve(l net.Listener) error {
+func (s *Server) Serve(l net.Listener, redirectList []net.IP) error {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			return err
 		}
-		go s.ServeConn(conn)
+		go s.ServeConn(conn, redirectList)
 	}
 	return nil
 }
 
 // ServeConn is used to serve a single connection.
-func (s *Server) ServeConn(conn net.Conn) error {
+func (s *Server) ServeConn(conn net.Conn, redirectList []net.IP) error {
 	defer conn.Close()
 	bufConn := bufio.NewReader(conn)
 
@@ -159,7 +159,7 @@ func (s *Server) ServeConn(conn net.Conn) error {
 	}
 
 	// Process the client request
-	if err := s.handleRequest(request, conn); err != nil {
+	if err := s.handleRequest(request, conn, redirectList); err != nil {
 		err = fmt.Errorf("Failed to handle request: %v", err)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return err

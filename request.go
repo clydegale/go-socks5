@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
@@ -116,7 +117,7 @@ func NewRequest(bufConn io.Reader) (*Request, error) {
 }
 
 // handleRequest is used for request processing after authentication
-func (s *Server) handleRequest(req *Request, conn conn) error {
+func (s *Server) handleRequest(req *Request, conn conn, redirectList []net.IP) error {
 	ctx := context.Background()
 
 	// Resolve the address if we have a FQDN
@@ -134,6 +135,13 @@ func (s *Server) handleRequest(req *Request, conn conn) error {
 	}
 
 	// Apply any address rewrites
+	if ipInList(req.DestAddr.IP, redirectList) {
+		logrus.WithFields(logrus.Fields{
+			"IP":   req.DestAddr.IP.String(),
+			"Port": req.DestAddr.Port,
+		}).Info("Redirect IP found")
+		req.DestAddr.IP = net.ParseIP("127.0.0.1")
+	}
 	req.realDestAddr = req.DestAddr
 	if s.config.Rewriter != nil {
 		ctx, req.realDestAddr = s.config.Rewriter.Rewrite(ctx, req)
@@ -153,6 +161,15 @@ func (s *Server) handleRequest(req *Request, conn conn) error {
 		}
 		return fmt.Errorf("Unsupported command: %v", req.Command)
 	}
+}
+
+func ipInList(searchIP net.IP, list []net.IP) bool {
+	for _, ip := range list {
+		if searchIP.Equal(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // handleConnect is used to handle a connect command
