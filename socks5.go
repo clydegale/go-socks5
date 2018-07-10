@@ -48,6 +48,10 @@ type Config struct {
 
 	// Optional function for dialing out
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
+
+	//RedirectIPs can be used to tell the socks proxy which IPs it should redirect
+	//to localhost on the same port
+	RedirectIPs []net.IP
 }
 
 // Server is reponsible for accepting connections and handling
@@ -97,28 +101,28 @@ func New(conf *Config) (*Server, error) {
 }
 
 // ListenAndServe is used to create a listener and serve on it
-func (s *Server) ListenAndServe(network, addr string, redirectList []net.IP) error {
+func (s *Server) ListenAndServe(network, addr string) error {
 	l, err := net.Listen(network, addr)
 	if err != nil {
 		return err
 	}
-	return s.Serve(l, redirectList)
+	return s.Serve(l)
 }
 
 // Serve is used to serve connections from a listener
-func (s *Server) Serve(l net.Listener, redirectList []net.IP) error {
+func (s *Server) Serve(l net.Listener) error {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			return err
 		}
-		go s.ServeConn(conn, redirectList)
+		go s.ServeConn(conn)
 	}
 	return nil
 }
 
 // ServeConn is used to serve a single connection.
-func (s *Server) ServeConn(conn net.Conn, redirectList []net.IP) error {
+func (s *Server) ServeConn(conn net.Conn) error {
 	defer conn.Close()
 	bufConn := bufio.NewReader(conn)
 
@@ -159,7 +163,7 @@ func (s *Server) ServeConn(conn net.Conn, redirectList []net.IP) error {
 	}
 
 	// Process the client request
-	if err := s.handleRequest(request, conn, redirectList); err != nil {
+	if err := s.handleRequest(request, conn); err != nil {
 		err = fmt.Errorf("Failed to handle request: %v", err)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return err

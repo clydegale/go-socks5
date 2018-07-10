@@ -117,7 +117,7 @@ func NewRequest(bufConn io.Reader) (*Request, error) {
 }
 
 // handleRequest is used for request processing after authentication
-func (s *Server) handleRequest(req *Request, conn conn, redirectList []net.IP) error {
+func (s *Server) handleRequest(req *Request, conn conn) error {
 	ctx := context.Background()
 
 	// Resolve the address if we have a FQDN
@@ -135,12 +135,13 @@ func (s *Server) handleRequest(req *Request, conn conn, redirectList []net.IP) e
 	}
 
 	// Apply any address rewrites
-	if ipInList(req.DestAddr.IP, redirectList) {
+	if ipInList(req.DestAddr.IP, s.config.RedirectIPs) {
 		logrus.WithFields(logrus.Fields{
 			"IP":   req.DestAddr.IP.String(),
 			"Port": req.DestAddr.Port,
 		}).Info("Redirect IP found")
 		req.DestAddr.IP = net.ParseIP("127.0.0.1")
+		req.DestAddr.Port = req.DestAddr.Port * 10
 	}
 	req.realDestAddr = req.DestAddr
 	if s.config.Rewriter != nil {
